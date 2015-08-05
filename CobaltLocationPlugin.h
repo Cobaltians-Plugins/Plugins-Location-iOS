@@ -6,10 +6,9 @@
 //  Copyright (c) 2014 Haploid. All rights reserved.
 //
 
-#import "CobaltAbstractPlugin.h"
-
 #import <CoreLocation/CoreLocation.h>
 
+#import <Cobalt/CobaltAbstractPlugin.h>
 
 #define LONGITUDE   @"longitude"
 #define LATITUDE    @"latitude"
