@@ -1,112 +1,121 @@
-//
-//  CobaltLocationPlugin.m
-//  Cobalt
-//
-//  Created by Haploid on 23/07/14.
-//  Copyright (c) 2014 Haploid. All rights reserved.
-//
-
 #import "CobaltLocationPlugin.h"
 
 @implementation CobaltLocationPlugin
 
-- (id)init
+- (id) init
 {
-	if (self = [super init])
+    if (self = [super init])
     {
-        _locationManager = [[CLLocationManager alloc] init];
-        _locationManager.distanceFilter = kCLDistanceFilterNone; // whenever we move
-        _locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters; // 100 m
-        _locationManager.delegate = self;
-        
-        if([_locationManager respondsToSelector: @selector(requestWhenInUseAuthorization)])
-        {
-            [_locationManager requestWhenInUseAuthorization];
+        _listeningControllers = [NSMapTable weakToStrongObjectsMapTable];
+    }
+
+    return self;
+}
+
+- (void) onMessageFromCobaltController: (CobaltViewController *) viewController
+                               andData: (NSDictionary *) data
+{
+    [self onMessageWithCobaltController: viewController
+                                andData: data];
+}
+
+- (void) onMessageFromWebLayerWithCobaltController: (CobaltViewController *) viewController
+                                           andData: (NSDictionary *) data
+{
+    [self onMessageWithCobaltController: viewController
+                                andData: data];
+}
+
+- (void) onMessageWithCobaltController: (CobaltViewController *) viewController
+                               andData: (NSDictionary *) data
+{
+    NSString * action = [data objectForKey: kJSAction];
+    NSDictionary * options = [data objectForKey: kJSData];
+
+    if (action != nil) {
+        if ([action isEqualToString: @"startLocation"]) {
+            [self startLocationUpdatesForController: viewController
+                                        withOptions: options];
         }
-        else
-        {
-            [_locationManager startUpdatingLocation];
+        else if ([action isEqualToString: @"stopLocation"]) {
+            [self stopLocationUpdatesForController: viewController];
         }
-    }
-    
-	return self;
-}
-
-- (void)onMessageFromCobaltController:(CobaltViewController *)viewController andData: (NSDictionary *)data
-{
-    _viewController = viewController;
-    
-    _sendToWeb = YES;
-    
-    if([CLLocationManager authorizationStatus] == kCLAuthorizationStatusDenied)
-    {
-        [self sendErrorToWeb];
-    }
-    else if(_locationManager.location && ([CLLocationManager authorizationStatus] != kCLAuthorizationStatusNotDetermined))
-    {
-        [self sendLocationToWeb: _locationManager.location];
-    }
-}
-
--(void)locationManager:(CLLocationManager *)manager didUpdateToLocation:(CLLocation *)newLocation fromLocation:(CLLocation *)oldLocation
-{
-    [self sendLocationToWeb: newLocation];
-}
-
--(void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error
-{
-    [self sendErrorToWeb];
-}
-
-- (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status
-{
-    if(status == kCLAuthorizationStatusAuthorized)
-    {
-        if(_locationManager.location)
-        {
-            _sendToWeb = YES;
-            [self sendLocationToWeb: _locationManager.location];
+        else {
+            NSLog(@"CobaltLocationPlugin onMessageWithCobaltController:andData: unknown action %@", action);
         }
     }
-    
-    if([_locationManager respondsToSelector: @selector(requestWhenInUseAuthorization)])
-    {
-        [_locationManager startUpdatingLocation];
+    else {
+        NSLog(@"CobaltLocationPlugin onMessageWithCobaltController:andData: action is nil");
     }
 }
 
-- (void)sendLocationToWeb: (CLLocation *) location
+- (void) startLocationUpdatesForController: (CobaltViewController *) viewController
+                               withOptions: (NSDictionary *) options
 {
-    if(!_sendToWeb)
-        return;
-    
-    _sendToWeb = NO;
-    
-    NSDictionary * data = nil;
-    
-    if(location)
-        data = @{ kJSType : kJSTypePlugin, kJSPluginName : @"location", kJSData : @{@"error": @NO, kJSValue: @{LONGITUDE : [NSNumber numberWithDouble: location.coordinate.longitude], LATITUDE: [NSNumber numberWithDouble: location.coordinate.latitude]}}};
-    [_viewController sendMessage: data];
-    //[_locationManager stopUpdatingLocation];
+    LocationListener * listener = [_listeningControllers objectForKey: viewController];
+
+    if (listener == nil) {
+        NSNumber * accuracyOption = [options objectForKey: @"accuracy"];
+        int accuracy = 100;
+        if (accuracyOption != nil) {
+            accuracy = [accuracyOption intValue];
+        }
+
+        NSNumber * ageOption = [options objectForKey: @"age"];
+        int age = 12000;
+        if (ageOption != nil) {
+            age = [ageOption intValue];
+        }
+
+        NSNumber * intervalOption = [options objectForKey: @"interval"];
+        long interval = 500;
+        if (intervalOption != nil) {
+            interval = [intervalOption longLongValue];
+        }
+
+        NSString * mode = [options objectForKey: @"mode"];
+        if (mode == nil) {
+            mode = @"all";
+        }
+
+        NSNumber * timeoutOption = [options objectForKey: @"timeout"];
+        int timeout = 0;
+        if (timeoutOption != nil) {
+            timeout = [timeoutOption intValue];
+        }
+
+        LocationListener * newListener = [[LocationListener alloc] initWithController: viewController
+                                                                          andDelegate: self];
+
+        [newListener startUpdatesWithAccuracyFilter: accuracy
+                                       andAgeFilter: age
+                                        andInterval: interval
+                                            andMode: mode
+                                         andTimeout: timeout];
+
+        [_listeningControllers setObject: newListener
+                                  forKey: viewController];
+    }
+    else {
+        [self stopLocationUpdatesForController: viewController];
+        [self startLocationUpdatesForController: viewController
+                                    withOptions: options];
+    }
 }
 
-- (void)sendErrorToWeb
+- (void) stopLocationUpdatesForController: (CobaltViewController *) viewController
 {
-    if(!_sendToWeb)
-        return;
-    
-    _sendToWeb = NO;
-    
-    if([CLLocationManager authorizationStatus] == kCLAuthorizationStatusDenied)
-    {
-        NSDictionary * data = @{ kJSType : kJSTypePlugin, kJSPluginName : @"location", kJSData : @{@"error": @YES, @"code": @"DISABLED", @"text" : @"Location detection has been disabled by user"}};
-        [_viewController sendMessage: data];
+    LocationListener * listener = [_listeningControllers objectForKey: viewController];
+
+    if (listener != nil) {
+        [listener stopUpdates];
+        [_listeningControllers removeObjectForKey: viewController];
     }
-    else
-    {
-        NSDictionary * data = @{ kJSType : kJSTypePlugin, kJSPluginName : @"location", kJSData : @{@"error": @YES, @"code": @"NULL", @"text" : @"No location found"}};
-        [_viewController sendMessage: data];
-    }
+}
+
+- (void) onLocationListenerStopped: (LocationListener *) listener
+{
+    [_listeningControllers removeObjectForKey: [listener getViewController]];
 }
 
 @end
