@@ -1,5 +1,8 @@
 #import "LocationListener.h"
 
+// Check iOS version
+#define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v) ([[[UIDevice currentDevice] systemVersion] compare: v options: NSNumericSearch] != NSOrderedAscending)
+
 @implementation LocationListener
 
 - (instancetype) initWithController: (CobaltViewController *) viewController
@@ -51,15 +54,16 @@
      || authorizationStatus == kCLAuthorizationStatusAuthorizedAlways) {
         [self startUpdates];
     }
+    else if (SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"8.0") && authorizationStatus == kCLAuthorizationStatusNotDetermined) {
+        [_locationManager requestWhenInUseAuthorization];
+    }
     else if (authorizationStatus == kCLAuthorizationStatusDenied
-          || authorizationStatus == kCLAuthorizationStatusRestricted) {
+          || authorizationStatus == kCLAuthorizationStatusRestricted
+          || authorizationStatus == kCLAuthorizationStatusNotDetermined) {
         [self sendStatusToWeb: _listening ? @"disabled" : @"refused"
                  withLocation: nil];
 
         [self stopUpdates];
-    }
-    else if (authorizationStatus == kCLAuthorizationStatusNotDetermined) {
-        [_locationManager requestWhenInUseAuthorization];
     }
 }
 
