@@ -1,5 +1,4 @@
 #import "CobaltLocationPlugin.h"
-#import <Cobalt/PubSub.h>
 
 @implementation CobaltLocationPlugin
 
@@ -13,21 +12,40 @@
     return self;
 }
 
-- (void)onMessageFromWebView:(WebViewType)webView
-          inCobaltController:(nonnull CobaltViewController *)viewController
-                  withAction:(nonnull NSString *)action
-                        data:(nullable NSDictionary *)data
-          andCallbackChannel:(nullable NSString *)callbackChannel{
-    
-    if ([action isEqualToString: @"startLocation"]) {
-        [self startLocationUpdatesForController: viewController
-                                    withOptions: data];
-    }
-    else if ([action isEqualToString: @"stopLocation"]) {
-        [self stopLocationUpdatesForController: viewController];
+- (void) onMessageFromCobaltController: (CobaltViewController *) viewController
+                               andData: (NSDictionary *) data
+{
+    [self onMessageWithCobaltController: viewController
+                                andData: data];
+}
+
+- (void) onMessageFromWebLayerWithCobaltController: (CobaltViewController *) viewController
+                                           andData: (NSDictionary *) data
+{
+    [self onMessageWithCobaltController: viewController
+                                andData: data];
+}
+
+- (void) onMessageWithCobaltController: (CobaltViewController *) viewController
+                               andData: (NSDictionary *) data
+{
+    NSString * action = [data objectForKey: kJSAction];
+    NSDictionary * options = [data objectForKey: kJSData];
+
+    if (action != nil) {
+        if ([action isEqualToString: @"startLocation"]) {
+            [self startLocationUpdatesForController: viewController
+                                        withOptions: options];
+        }
+        else if ([action isEqualToString: @"stopLocation"]) {
+            [self stopLocationUpdatesForController: viewController];
+        }
+        else {
+            NSLog(@"CobaltLocationPlugin onMessageWithCobaltController:andData: unknown action %@", action);
+        }
     }
     else {
-        NSLog(@"CobaltLocationPlugin onMessageWithCobaltController:andData: unknown action %@", action);
+        NSLog(@"CobaltLocationPlugin onMessageWithCobaltController:andData: action is nil");
     }
 }
 
