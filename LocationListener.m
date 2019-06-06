@@ -142,7 +142,7 @@
         if (sendLocation) {
             NSDictionary * message = @{
                 kJSType: kJSTypePlugin,
-                kJSPluginName: @"location",
+                kJSPluginName: @"CobaltLocationPlugin",
                 kJSAction: @"onLocationChanged",
                 kJSData: [self dictionaryFromLocation: location]
             };
@@ -175,7 +175,7 @@
 
     NSDictionary * message = @{
         kJSType: kJSTypePlugin,
-        kJSPluginName: @"location",
+        kJSPluginName: @"CobaltLocationPlugin",
         kJSAction: @"onStatusChanged",
         kJSData: data
     };
